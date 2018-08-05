@@ -5,6 +5,7 @@ import os
 import pykalman
 from pykalman import KalmanFilter
 from statsmodels.tsa.stattools import adfuller
+import copy
 
 
 X = pd.read_csv('upload.csv')
@@ -266,7 +267,7 @@ res = pd.DataFrame()
 # No. of consecutive intervals of 5 min to be tested
 
 
-intervals = 30
+intervals = 8
 
 for i in range(0, intervals):
     
@@ -324,9 +325,18 @@ res = res.dropna(axis =0)
 
 res = res[~res.index.duplicated(keep='first')]
 
-res.to_csv('res72.csv')
+#res.to_csv('res72.csv')
 
-#--------------------------------------------------------------------------------------
+#==============================================================================================
+
+
+
+
+
+
+
+
+#res = pd.csv('res72.csv', index_col = 'timestamp')
 
 #res = pd.csv('res72.csv', index_col = 'timestamp')
 
@@ -356,7 +366,7 @@ q3 = []
 sprice = []
 
 POS = []
-
+PRICE =[]
 
 res['mp_p_1'] = feat['mp_1']
 res['mp_p_2'] = feat['mp_2']
@@ -370,18 +380,24 @@ start_time = feat.index[feat.index.get_loc(start_time,method='nearest')]
 for index, row in res.iterrows():
     
     if row['z_score'] >= 2.00 and position[0] == 0:
-        action.append('Bought')
+        action.append('Sold')
         sprice.append(row['mp_p_1'])
         betas = beta_values(index,beta_list,start_time)
-        beta_sum = np.sum(np.abs(betas))
+        print("*****betas: ", betas)
+        beta_sum = np.sum(betas)
         price[0] = row['mp_p_1']
         price[1] = row['mp_p_2']
         price[2] = row['mp_p_3']
-        position[0] -= 1000000/row['mp_p_1']
-        position[1] += 1000000*betas[0]/(beta_sum*row['mp_p_2'])
-        position[2] += 1000000*betas[1]/(beta_sum*row['mp_p_3'])
-        POS.append(position)
-        timestamp_trades.append([index , -1 , np.sign(position[1]) , np.sign(position[2]) ])       
+        position[0] -= 100000/row['mp_p_1']
+        position[1] += 100000*betas[0]/(beta_sum*row['mp_p_2'])
+        position[2] += 100000*betas[1]/(beta_sum*row['mp_p_3'])
+        
+        print("*****betas[0]: ", betas[0], " beta_sum: ", beta_sum, " row['mp_p_2']: ", row['mp_p_2'])
+        print("*****betas[1]: ", betas[1], " beta_sum: ", beta_sum, "row['mp_p_3']: ", row['mp_p_3'], "\n\n")      
+        
+        POS.append(copy.deepcopy(position))
+        PRICE.append(copy.deepcopy([row['mp_p_1'], row['mp_p_2'], row['mp_p_3']]))
+        timestamp_trades.append([index , -1 , np.sign(position[1]) , np.sign(position[2]) ] + [row['mp_p_1'], row['mp_p_2'], row['mp_p_3']])       
         
     elif (row['z_score'] >= 1.00 and position[0] > 0) or (row['z_score'] <= -1.00 and position[0] < 0):
         action.append('Exit')
@@ -392,31 +408,45 @@ for index, row in res.iterrows():
         transaction_profit = position[0]*(row['mp_p_1'] - price[0] )+\
         position[1]*(row['mp_p_2'] - price[1] )+position[2]*(row['mp_p_3'] - price[2] )
         transaction_return = transaction_profit/100
-        timestamp_trades.append([index , -1*np.sign(position[0]) , -1*np.sign(position[1]) , -1*np.sign(position[2]) ])
+        timestamp_trades.append([index , -1*np.sign(position[0]) , -1*np.sign(position[1]) , -1*np.sign(position[2])] + [row['mp_p_1'], row['mp_p_2'], row['mp_p_3']])
         trans_rec.append([index,transaction_profit,transaction_return])
         position[0] = 0
         position[1] = 0
         position[2] = 0
-        POS.append(position)
+        
+        
+        POS.append(copy.deepcopy(position))
+        #PRICE.append(copy.deepcopy([row['mp_p_1'], row['mp_p_2'], row['mp_p_3']]))
         total_trades += 1        
         
     elif row['z_score'] <= -2.00 and position[0] == 0:
-        action.append('Sold')
+        action.append('Bought')
         sprice.append(row['mp_p_1'])
         betas = beta_values(index,beta_list,start_time)
-        beta_sum = np.sum(np.abs(betas))
+        print("*****betas: ", betas)
+        beta_sum = np.sum(betas)
         price[0] = row['mp_p_1']
         price[1] = row['mp_p_2']
         price[2] = row['mp_p_3']
-        position[0] += 1000000/row['mp_p_1']
-        position[1] -= 1000000*betas[0]/(beta_sum*row['mp_p_2'])
-        position[2] -= 1000000*betas[1]/(beta_sum*row['mp_p_3'])
-        POS.append(position)
-        timestamp_trades.append([index , 1 , np.sign(position[1]) , np.sign(position[2]) ]) 
+        position[0] += 100000/row['mp_p_1']
+        position[1] -= 100000*betas[0]/(beta_sum*row['mp_p_2'])
+        position[2] -= 100000*betas[1]/(beta_sum*row['mp_p_3'])
+        
+        
+        print("*****betas[0]: ", betas[0], " beta_sum: ", beta_sum, " row['mp_p_2']: ", row['mp_p_2'])
+        print("*****betas[1]: ", betas[1], " beta_sum: ", beta_sum, "row['mp_p_3']: ", row['mp_p_3'], "\n\n")       
+        
+        
+        POS.append(copy.deepcopy(position))
+        #PRICE.append(copy.deepcopy())
+        timestamp_trades.append([index , 1 , np.sign(position[1]) , np.sign(position[2])] + [row['mp_p_1'], row['mp_p_2'], row['mp_p_3']]) 
                                         
                     
 
 
+
+POS = np.array(POS)
+#PRICE = np.array(PRICE)
 
 timestamp_trades = np.array(timestamp_trades)
 trades_1 = timestamp_trades[:,[0,1]]
@@ -455,52 +485,70 @@ plt.show()
 
 ######################################  TRADE SHEET  ############################################
 
+POSdf = pd.DataFrame(data = POS, columns = ['B1pos', 'B2pos', 'B3pos'])
 
+trades = pd.DataFrame(data = timestamp_trades, columns = ['Timestamp', 'Bank1', 'Bank2', 'Bank3', 'PriceB1', 'PriceB2', 'PriceB3'])
 
-trades = pd.DataFrame(data = timestamp_trades, columns = ['Timestamp', 'Bank1', 'Bank2', 'Bank3'])
+tradesdf = pd.DataFrame(columns = ['Timestamp', 'B1', 'B2', 'B3', 'Action', 'B1pos', 
+                                   'B2pos', 'B3pos', 'B1Price', 'B2Price', 'B3Price',
+                                   'B1Q', 'B2Q', 'B3Q'])
 
-tradesdf = pd.DataFrame(columns = ['Timestamp', 'B1', 'B2', 'B3', 'B1val', 'B2val', 'B3val'])
-
-tradesdf['Timestamp'] = trades['Timestamp']
+tradesdf['Timestamp'] = trades['Timestamp'].astype(str)
 tradesdf['B1'] = trades['Bank1']
 tradesdf['B2'] = trades['Bank2']
 tradesdf['B3'] = trades['Bank3']
 
-
-neg = 0
-pos = 0
-for var in range(len(tradesdf)):
-    if tradesdf['B1'][var] == 1:
-        tradesdf['B1val'][var] = trades_1_pos_val[pos]
-        pos += 1
-    else:
-        tradesdf['B1val'][var] = -trades_1_neg_val[neg]
-        neg += 1
+tradesdf['B1Price'] = trades['PriceB1']
+tradesdf['B2Price'] = trades['PriceB2']
+tradesdf['B3Price'] = trades['PriceB3']
 
 
-neg = 0
-pos = 0
-for var in range(len(tradesdf)):
-    if tradesdf['B2'][var] == 1:
-        tradesdf['B2val'][var] = trades_2_pos_val[pos]
-        pos += 1
-    else:
-        tradesdf['B2val'][var] = -trades_2_neg_val[neg]
-        neg += 1
+tradesdf['B1pos'] = POSdf['B1pos']
+tradesdf['B2pos'] = POSdf['B2pos']
+tradesdf['B3pos'] = POSdf['B3pos']
 
 
-neg = 0
-pos = 0
-for var in range(len(tradesdf)):
-    if tradesdf['B3'][var] == 1:
-        tradesdf['B3val'][var] = trades_3_pos_val[pos]
-        pos += 1
-    else:
-        tradesdf['B3val'][var] = -trades_3_neg_val[neg]
-        neg += 1
+#neg = 0
+#pos = 0
+#for var in range(len(tradesdf)):
+#    if tradesdf['B1'][var] == 1:
+#        tradesdf['B1val'][var] = trades_1_pos_val[pos]
+#        pos += 1
+#    else:
+#        tradesdf['B1val'][var] = -trades_1_neg_val[neg]
+#        neg += 1
+#
+#
+#neg = 0
+#pos = 0
+#for var in range(len(tradesdf)):
+#    if tradesdf['B2'][var] == 1:
+#        tradesdf['B2val'][var] = trades_2_pos_val[pos]
+#        pos += 1
+#    else:
+#        tradesdf['B2val'][var] = -trades_2_neg_val[neg]
+#        neg += 1
+#
+#
+#neg = 0
+#pos = 0
+#for var in range(len(tradesdf)):
+#    if tradesdf['B3'][var] == 1:
+#        tradesdf['B3val'][var] = trades_3_pos_val[pos]
+#        pos += 1
+#    else:
+#        tradesdf['B3val'][var] = -trades_3_neg_val[neg]
+#        neg += 1
 
 
 tradesdf['Action'] = action
+
+tradesdf['B1Q'] = tradesdf['B1pos'] - tradesdf['B1pos'].shift(1)
+tradesdf['B2Q'] = tradesdf['B2pos'] - tradesdf['B2pos'].shift(1)
+tradesdf['B3Q'] = tradesdf['B3pos'] - tradesdf['B3pos'].shift(1)
+tradesdf['B1Q'][0] = tradesdf['B1pos'][0]
+tradesdf['B2Q'][0] = tradesdf['B2pos'][0]
+tradesdf['B3Q'][0] = tradesdf['B3pos'][0]
 
 cre = []
 deb = []
@@ -509,41 +557,49 @@ for var in range(len(tradesdf)):
     credit = 0
     debit = 0
     
-    if tradesdf['B1val'][var] >= 0:
-        credit += tradesdf['B1val'][var]
+    if tradesdf['B1Q'][var] <= 0:
+        credit += abs(tradesdf['B1Q'][var]) * tradesdf['B1Price'][var]
     else:
-        debit += tradesdf['B1val'][var]
+        debit += abs(tradesdf['B1Q'][var])*tradesdf['B1Price'][var]
     
-    if tradesdf['B2val'][var] >= 0:
-        credit += tradesdf['B2val'][var]
+    
+    if tradesdf['B2Q'][var] <= 0:
+        credit += abs(tradesdf['B2Q'][var])*tradesdf['B2Price'][var]
     else:
-        debit += tradesdf['B2val'][var]
+        debit += abs(tradesdf['B2Q'][var])*tradesdf['B2Price'][var]
+    
 
-    if tradesdf['B3val'][var] >= 0:
-        credit += tradesdf['B3val'][var]
+    if tradesdf['B3Q'][var] <= 0:
+        credit += abs(tradesdf['B3Q'][var])*tradesdf['B3Price'][var]
     else:
-        debit += tradesdf['B3val'][var]
+        debit += abs(tradesdf['B3Q'][var])*tradesdf['B3Price'][var]
+    
     
     cre.append(credit)
     deb.append(debit)
-    
+
 
 tradesdf['Credit'] = cre
 tradesdf['Debit'] = deb
-tradesdf['Price'] = sprice
+
+
+#tradesdf['Credit'] = tradesdf['Credit'].astype(int)
+#tradesdf['Credit'] = tradesdf['Credit'].astype(str)
+
+
+#tradesdf['Price'] = sprice
 tradesdf['CuCredit'] = tradesdf['Credit'].cumsum()
 tradesdf['CuDebit'] = tradesdf['Debit'].cumsum()
 
-tradesdf['trade'] = tradesdf['Credit'] - tradesdf['Debit']
-tradesdf['Turnover'] = tradesdf['CuCredit'] - tradesdf['CuDebit']
+tradesdf['Trade'] = tradesdf['Credit'] + tradesdf['Debit']
+tradesdf['Turnover'] = (tradesdf['CuCredit'] + tradesdf['CuDebit'])
 
-tradesdf['position'] = tradesdf['B1'] + tradesdf['B2'] + tradesdf['B3']
+tradesdf['PNL'] = tradesdf['CuCredit'] - tradesdf['CuDebit'] + (tradesdf['B1pos'] * tradesdf['B1Price']) + (tradesdf['B2pos'] * tradesdf['B2Price']) + (tradesdf['B3pos'] * tradesdf['B3Price'])
 
-tradesdf['PNL'] = tradesdf['CuCredit'] + tradesdf['CuDebit'] + tradesdf['position'] * tradesdf['Price']
 
 tradesdf['PNLperTrade'] = tradesdf['PNL'] / tradesdf['Turnover']
 
-tradesdf['PNLafterTC'] = tradesdf['PNL'] - (0.03/100) * tradesdf['PNL']
+tradesdf['PNLafterTC'] = tradesdf['PNL']/100.0 - (0.03/100) * tradesdf['Turnover']/10000.0
 
 plt.plot(tradesdf['PNL'])
 plt.plot(tradesdf['PNLafterTC'])
@@ -553,19 +609,3 @@ plt.show()
 
 
 tradesdf.to_csv('KALMANTRADES.csv', index = False)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
